@@ -5,4 +5,4 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_SystemInformation", "Win32_System_Threading"] }
+windows = { version = "0.62.2", features = ["Wdk_System_SystemInformation", "Win32_Foundation", "Win32_System_SystemInformation", "Win32_System_Threading"] }

@@ -1,3 +1,6 @@
+mod process;
+pub use process::{ProcessSample, ProcessSampler};
+
 use std::time::{SystemTime, UNIX_EPOCH};
 use windows::Win32::Foundation::FILETIME;
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
