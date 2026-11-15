@@ -1,5 +1,5 @@
 mod process;
-pub use process::{ProcessSample, ProcessSampler};
+pub use process::{aggregate, AppSample, ProcessSample, ProcessSampler};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use windows::Win32::Foundation::FILETIME;

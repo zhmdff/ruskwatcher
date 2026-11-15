@@ -1,7 +1,7 @@
+use collector::AppSample;
 use std::{path::Path, thread, time::Duration};
 
 const FLUSH_EVERY: usize = 5;
-const MB: f64 = 1024.0 * 1024.0;
 
 fn main() {
     let mut sampler = match collector::Sampler::new() {
@@ -28,40 +28,38 @@ fn main() {
         }
     };
 
-    let mut buffer = Vec::new();
+    let mut sys_buffer = Vec::new();
+    let mut app_buffer: Vec<(u64, Vec<AppSample>)> = Vec::new();
 
     loop {
         thread::sleep(Duration::from_secs(2));
 
-        match sampler.sample() {
-            Ok(s) => buffer.push(s),
-            Err(e) => eprintln!("Sample failed: {e}"),
-        }
+        let sample = match sampler.sample() {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Sample failed: {e}");
+                continue;
+            }
+        };
+        let ts = sample.timestamp;
+        sys_buffer.push(sample);
 
         match proc_sampler.sample() {
-            Ok(mut procs) => {
-                procs.sort_by(|a, b| b.cpu_percent.total_cmp(&a.cpu_percent));
-                for p in procs.iter().take(5) {
-                    println!(
-                        "{:<28} pid {:>6}  cpu {:>5.1}%  mem {:>8.1} MB  write {:>8.1} KB",
-                        p.name,
-                        p.pid,
-                        p.cpu_percent,
-                        p.private_bytes as f64 / MB,
-                        p.write_bytes as f64 / 1024.0
-                    );
-                }
-                println!();
-            }
+            Ok(procs) => app_buffer.push((ts, collector::aggregate(procs))),
             Err(e) => eprintln!("Process sample failed: {e}"),
         }
 
-        if buffer.len() >= FLUSH_EVERY {
-            match store.insert_samples(&buffer) {
-                Ok(()) => println!("Saved {} samples", buffer.len()),
-                Err(e) => eprintln!("Save failed: {e}"),
+        if sys_buffer.len() >= FLUSH_EVERY {
+            let rows: usize = app_buffer.iter().map(|(_, apps)| apps.len()).sum();
+            if let Err(e) = store.insert_samples(&sys_buffer) {
+                eprintln!("Saving system samples failed: {e}");
             }
-            buffer.clear();
+            if let Err(e) = store.insert_apps(&app_buffer) {
+                eprintln!("Saving app samples failed: {e}");
+            }
+            println!("Flushed {} samples, {} app rows", sys_buffer.len(), rows);
+            sys_buffer.clear();
+            app_buffer.clear();
         }
     }
 }

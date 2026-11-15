@@ -120,7 +120,10 @@ fn parse(buf: &[u64]) -> Vec<RawEntry> {
             String::new()
         } else {
             let units = unsafe {
-                std::slice::from_raw_parts(raw.image_name.buffer, raw.image_name.length as usize / 2)
+                std::slice::from_raw_parts(
+                    raw.image_name.buffer,
+                    raw.image_name.length as usize / 2,
+                )
             };
             String::from_utf16_lossy(units)
         };
@@ -201,4 +204,48 @@ impl ProcessSampler {
         self.prev = next;
         Ok(out)
     }
+}
+const MIN_CPU_PERCENT: f64 = 0.5;
+const MIN_IO_BYTES: u64 = 256 * 1024;
+
+pub struct AppSample {
+    pub name: String,
+    pub instances: u32,
+    pub cpu_percent: f64,
+    pub private_bytes: u64,
+    pub working_set_bytes: u64,
+    pub handles: u32,
+    pub read_bytes: u64,
+    pub write_bytes: u64,
+}
+
+pub fn aggregate(procs: Vec<ProcessSample>) -> Vec<AppSample> {
+    let mut apps: HashMap<String, AppSample> = HashMap::new();
+    for p in procs {
+        if p.name.is_empty() {
+            continue;
+        }
+        let app = apps.entry(p.name.clone()).or_insert_with(|| AppSample {
+            name: p.name.clone(),
+            instances: 0,
+            cpu_percent: 0.0,
+            private_bytes: 0,
+            working_set_bytes: 0,
+            handles: 0,
+            read_bytes: 0,
+            write_bytes: 0,
+        });
+        app.instances += 1;
+        app.cpu_percent += p.cpu_percent;
+        app.private_bytes += p.private_bytes;
+        app.working_set_bytes += p.working_set_bytes;
+        app.handles += p.handles;
+        app.read_bytes += p.read_bytes;
+        app.write_bytes += p.write_bytes;
+    }
+    apps.into_values()
+        .filter(|a| {
+            a.cpu_percent >= MIN_CPU_PERCENT || a.read_bytes + a.write_bytes >= MIN_IO_BYTES
+        })
+        .collect()
 }
