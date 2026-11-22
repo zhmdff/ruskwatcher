@@ -10,7 +10,7 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
-tauri = "2"
+tauri = { version = "2", features = ["devtools"] }
 store = { path = "../store" }
 serde_json = "1"
 
