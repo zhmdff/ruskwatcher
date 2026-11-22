@@ -1,0 +1,18 @@
+[package]
+name = "ruskwatcher-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["custom-protocol"]
+# embed ./ui into the exe (release builds); without it the webview waits for a dev server
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = "2"
+store = { path = "../store" }
+serde_json = "1"
+
+[build-dependencies]
+tauri-build = "2"

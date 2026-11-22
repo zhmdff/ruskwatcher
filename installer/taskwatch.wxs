@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RuskWatcher MSI (WiX 3). Build with installer\build.ps1. Variables: Version, SrcDir, IconFile -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="RuskWatcher" Language="1033" Version="$(var.Version)" Manufacturer="RuskWatcher"
+           UpgradeCode="158eceb2-dcf4-4ad4-9a47-a343579fb4e7">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of RuskWatcher is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="RuskWatcher" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="MenuDir" Name="RuskWatcher" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="AppExe" Guid="34e9608b-b152-48a7-9ae2-7bd4056556ef" Win64="yes">
+        <File Id="AppExeFile" Name="RuskWatcher.exe" Source="$(var.SrcDir)\RuskWatcher.exe" KeyPath="yes" />
+      </Component>
+      <!-- collector: LocalSystem service, manual start; the Autostart feature flips it to automatic -->
+      <Component Id="ServiceExe" Guid="878a24b5-3c79-49e4-a8fa-903052e8e281" Win64="yes">
+        <File Id="ServiceExeFile" Name="service.exe" Source="$(var.SrcDir)\service.exe" KeyPath="yes" />
+        <ServiceInstall Id="RuskWatcherSvc" Name="RuskWatcher" DisplayName="RuskWatcher"
+                        Description="Records per-app CPU, memory, disk, network and GPU history."
+                        Type="ownProcess" Start="demand" ErrorControl="normal" Arguments="--service" />
+        <ServiceControl Id="RuskWatcherCtl" Name="RuskWatcher" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="MenuDir">
+      <Component Id="MenuShortcut" Guid="daa281d0-5864-409e-84d8-e41daafd8fb5" Win64="yes">
+        <Shortcut Id="AppShortcut" Name="RuskWatcher" Target="[INSTALLFOLDER]RuskWatcher.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveMenuDir" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\RuskWatcher" Name="shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- A feature needs a component; this marker is what the custom action keys off. -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="AutostartMarker" Guid="*" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\RuskWatcher" Name="AutostartChosen" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="FeatMain" Title="RuskWatcher" Description="The dashboard app and the background collector service."
+             Level="1" Absent="disallow" ConfigurableDirectory="INSTALLFOLDER" Display="expand">
+      <ComponentRef Id="AppExe" />
+      <ComponentRef Id="ServiceExe" />
+      <ComponentRef Id="MenuShortcut" />
+      <Feature Id="FeatAutostart" Title="Start collecting automatically when Windows starts"
+               Description="Without this, collection only runs after you press Start in RuskWatcher Settings. Changeable later in Settings."
+               Level="1" Absent="allow">
+        <ComponentRef Id="AutostartMarker" />
+      </Feature>
+    </Feature>
+
+    <CustomAction Id="AutostartOn" FileKey="ServiceExeFile" ExeCommand="autostart on"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="AutostartOn" After="StartServices">&amp;FeatAutostart=3</Custom>
+    </InstallExecuteSequence>
+
+    <UIRef Id="WixUI_FeatureTree" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+  </Product>
+</Wix>

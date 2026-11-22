@@ -1,5 +1,15 @@
+mod drive;
+mod etw;
+mod gpu;
+mod image;
 mod process;
+mod startup;
+pub use drive::{drives, DriveHealth};
+pub use etw::{Etw, IoCounters};
+pub use gpu::{GpuSample, GpuSampler};
+pub use image::is_signed;
 pub use process::{aggregate, AppSample, ProcessSample, ProcessSampler};
+pub use startup::{boot_info, is_elevated, startup_entries, BootTimes, StartupEntry};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use windows::Win32::Foundation::FILETIME;
@@ -11,11 +21,18 @@ pub struct MemoryInfo {
     pub used_bytes: u64,
 }
 
+#[derive(Clone)]
 pub struct Sample {
     pub timestamp: u64,
     pub cpu_percent: f64,
     pub mem_used_bytes: u64,
     pub mem_total_bytes: u64,
+    pub gpu_percent: f64,
+    pub vram_used_bytes: u64,
+    pub disk_read_bytes: u64,
+    pub disk_write_bytes: u64,
+    pub net_in_bytes: u64,
+    pub net_out_bytes: u64,
 }
 
 struct CpuTimes {
@@ -90,6 +107,12 @@ impl Sampler {
             cpu_percent,
             mem_used_bytes: mem.used_bytes,
             mem_total_bytes: mem.total_bytes,
+            gpu_percent: 0.0,
+            vram_used_bytes: 0,
+            disk_read_bytes: 0,
+            disk_write_bytes: 0,
+            net_in_bytes: 0,
+            net_out_bytes: 0,
         })
     }
 }

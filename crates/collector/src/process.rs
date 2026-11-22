@@ -65,6 +65,7 @@ struct RawEntry {
 }
 
 struct PrevCounters {
+    exe_path: String,
     cpu_time: u64,
     read_bytes: u64,
     write_bytes: u64,
@@ -73,12 +74,16 @@ struct PrevCounters {
 pub struct ProcessSample {
     pub pid: u32,
     pub name: String,
+    pub exe_path: String,
     pub cpu_percent: f64,
     pub private_bytes: u64,
     pub working_set_bytes: u64,
     pub handles: u32,
     pub read_bytes: u64,
     pub write_bytes: u64,
+    pub net_in_bytes: u64,
+    pub net_out_bytes: u64,
+    pub gpu_percent: f64,
 }
 
 pub struct ProcessSampler {
@@ -172,15 +177,25 @@ impl ProcessSampler {
 
         for e in entries {
             let key = (e.pid, e.create_time);
-            let (prev_cpu, prev_read, prev_write) = match self.prev.get(&key) {
-                Some(p) => (p.cpu_time, p.read_bytes, p.write_bytes),
-                None => (0, 0, 0),
+            let (prev_cpu, prev_read, prev_write, exe_path) = match self.prev.get(&key) {
+                Some(p) => (p.cpu_time, p.read_bytes, p.write_bytes, p.exe_path.clone()),
+                None => (
+                    0,
+                    0,
+                    0,
+                    if e.pid == 0 {
+                        String::new()
+                    } else {
+                        crate::image::exe_path(e.pid).unwrap_or_default()
+                    },
+                ),
             };
 
             if e.pid != 0 {
                 out.push(ProcessSample {
                     pid: e.pid,
                     name: e.name,
+                    exe_path: exe_path.clone(),
                     cpu_percent: e.cpu_time.saturating_sub(prev_cpu) as f64 * 100.0
                         / capacity as f64,
                     private_bytes: e.private_bytes,
@@ -188,12 +203,16 @@ impl ProcessSampler {
                     handles: e.handles,
                     read_bytes: e.read_bytes.saturating_sub(prev_read),
                     write_bytes: e.write_bytes.saturating_sub(prev_write),
+                    net_in_bytes: 0,
+                    net_out_bytes: 0,
+                    gpu_percent: 0.0,
                 });
             }
 
             next.insert(
                 key,
                 PrevCounters {
+                    exe_path,
                     cpu_time: e.cpu_time,
                     read_bytes: e.read_bytes,
                     write_bytes: e.write_bytes,
@@ -208,33 +227,55 @@ impl ProcessSampler {
 const MIN_CPU_PERCENT: f64 = 0.5;
 const MIN_IO_BYTES: u64 = 256 * 1024;
 
+#[derive(Clone)]
 pub struct AppSample {
     pub name: String,
+    pub exe_path: String,
     pub instances: u32,
+    /// pid of the busiest instance (for snapshots)
+    pub top_pid: u32,
     pub cpu_percent: f64,
     pub private_bytes: u64,
     pub working_set_bytes: u64,
     pub handles: u32,
     pub read_bytes: u64,
     pub write_bytes: u64,
+    pub net_in_bytes: u64,
+    pub net_out_bytes: u64,
+    pub gpu_percent: f64,
 }
 
 pub fn aggregate(procs: Vec<ProcessSample>) -> Vec<AppSample> {
     let mut apps: HashMap<String, AppSample> = HashMap::new();
+    let mut top_cpu: HashMap<u32, f64> = HashMap::new();
     for p in procs {
         if p.name.is_empty() {
             continue;
         }
-        let app = apps.entry(p.name.clone()).or_insert_with(|| AppSample {
+        let key = if p.exe_path.is_empty() {
+            p.name.clone()
+        } else {
+            p.exe_path.to_lowercase()
+        };
+        let app = apps.entry(key).or_insert_with(|| AppSample {
             name: p.name.clone(),
+            exe_path: p.exe_path.clone(),
             instances: 0,
+            top_pid: p.pid,
             cpu_percent: 0.0,
             private_bytes: 0,
             working_set_bytes: 0,
             handles: 0,
             read_bytes: 0,
             write_bytes: 0,
+            net_in_bytes: 0,
+            net_out_bytes: 0,
+            gpu_percent: 0.0,
         });
+        if app.instances > 0 && p.cpu_percent > top_cpu.get(&app.top_pid).copied().unwrap_or(0.0) {
+            app.top_pid = p.pid;
+        }
+        top_cpu.insert(p.pid, p.cpu_percent);
         app.instances += 1;
         app.cpu_percent += p.cpu_percent;
         app.private_bytes += p.private_bytes;
@@ -242,10 +283,15 @@ pub fn aggregate(procs: Vec<ProcessSample>) -> Vec<AppSample> {
         app.handles += p.handles;
         app.read_bytes += p.read_bytes;
         app.write_bytes += p.write_bytes;
+        app.net_in_bytes += p.net_in_bytes;
+        app.net_out_bytes += p.net_out_bytes;
+        app.gpu_percent += p.gpu_percent;
     }
     apps.into_values()
         .filter(|a| {
-            a.cpu_percent >= MIN_CPU_PERCENT || a.read_bytes + a.write_bytes >= MIN_IO_BYTES
+            a.cpu_percent >= MIN_CPU_PERCENT
+                || a.read_bytes + a.write_bytes + a.net_in_bytes + a.net_out_bytes >= MIN_IO_BYTES
+                || a.gpu_percent >= MIN_CPU_PERCENT
         })
         .collect()
 }
