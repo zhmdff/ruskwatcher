@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "RuskWatcher",
-  "bundle.publisher": "zhmdff",
   "version": "0.1.0",
   "identifier": "dev.ruskwatcher.app",
   "build": { "frontendDist": "./ui" },
@@ -18,5 +17,9 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico"],
+    "publisher": "zhmdff"
+  }
 }
