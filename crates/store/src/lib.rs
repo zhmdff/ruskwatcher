@@ -559,6 +559,32 @@ mod tests {
     }
 
     #[test]
+    fn dashboard_findings_carry_values_not_text() {
+        let mut s = mem();
+        let procs = vec![app("hog.exe", 90.0)];
+        s.insert_finding(&FindingInput {
+            ts: 9000,
+            kind: "app_cpu_high",
+            severity: 1,
+            metric: "app_cpu_percent",
+            value: 95.0,
+            threshold: 50.0,
+            pre_window_sec: 30,
+            sys_json: "{}",
+            detail_json: r#"{"summary":"old text"}"#,
+            procs: &procs,
+            culprit: Some("hog.exe"),
+        })
+        .unwrap();
+        let v = s.dashboard(3600, 10_000).unwrap();
+        let f = &v["findings"][0];
+        assert!(f.get("summary").is_none());
+        assert_eq!(f["value"], 95.0);
+        assert_eq!(f["threshold"], 50.0);
+        assert!(f["app"].is_string());
+    }
+
+    #[test]
     fn finding_links_snapshot_and_culprit() {
         let mut s = mem();
         let procs = vec![app("hog.exe", 90.0)];

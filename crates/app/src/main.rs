@@ -21,10 +21,7 @@ fn db_path() -> PathBuf {
 fn dashboard(range: u64) -> Result<serde_json::Value, String> {
     let path = db_path();
     if !path.exists() {
-        return Err(format!(
-            "No data at {} yet. Is the RuskWatcher service running?",
-            path.display()
-        ));
+        return Err(format!("no_data:{}", path.display()));
     }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -50,7 +47,7 @@ fn service_exe() -> Result<PathBuf, String> {
         .with_file_name("service.exe");
     p.exists()
         .then_some(p.clone())
-        .ok_or(format!("{} not found", p.display()))
+        .ok_or(format!("service_exe_missing:{}", p.display()))
 }
 
 /// Number after "KEY :" in `sc` output; numeric codes avoid depending on the display language.
@@ -83,6 +80,7 @@ fn service_status() -> serde_json::Value {
         "running": state == Some(4),
         "autostart": sc_code(&c, "START_TYPE") == Some(2),
         "db": db_path().display().to_string(),
+        "version": env!("CARGO_PKG_VERSION"),
     })
 }
 
@@ -97,9 +95,7 @@ fn service_elevated(args: &str) -> Result<(), String> {
         .args(["-NoProfile", "-NonInteractive", "-Command", &script])
         .status()
         .map_err(|e| e.to_string())?;
-    st.success()
-        .then_some(())
-        .ok_or("cancelled or failed".into())
+    st.success().then_some(()).ok_or("elevation_failed".into())
 }
 
 #[tauri::command]
@@ -127,6 +123,20 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::sc_code;
+
+    #[test]
+    fn missing_db_is_a_code() {
+        std::env::set_var("RUSKWATCHER_DB", r"Z:\nope\x.db");
+        assert_eq!(super::dashboard(60).unwrap_err(), r"no_data:Z:\nope\x.db");
+    }
+
+    #[test]
+    fn status_has_version() {
+        assert_eq!(
+            super::service_status()["version"],
+            env!("CARGO_PKG_VERSION")
+        );
+    }
 
     #[test]
     fn parses_sc_output() {

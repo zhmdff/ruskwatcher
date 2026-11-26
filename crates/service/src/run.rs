@@ -230,7 +230,8 @@ pub fn run(stop: Arc<AtomicBool>, db: &Path) -> Result<(), String> {
             // keep the blamed app even when it is not a top-CPU one
             if let Some(c) = &f.culprit {
                 if !procs.iter().any(|p| &p.name == c) {
-                    procs.extend(latest.apps.iter().find(|p| &p.name == c).cloned());
+                    // it may have exited before the latest sample; its name still has to be saved
+                    procs.extend(ring.last_seen(c).cloned());
                 }
             }
             let s = &latest.sample;
@@ -242,7 +243,6 @@ pub fn run(stop: Arc<AtomicBool>, db: &Path) -> Result<(), String> {
                 "gpu_percent": s.gpu_percent,
             })
             .to_string();
-            let detail = json!({ "summary": f.detail }).to_string();
             let r = store.insert_finding(&FindingInput {
                 ts,
                 kind: f.kind,
@@ -252,7 +252,7 @@ pub fn run(stop: Arc<AtomicBool>, db: &Path) -> Result<(), String> {
                 threshold: f.threshold,
                 pre_window_sec: ring.span_secs() as i64,
                 sys_json: &sys_json,
-                detail_json: &detail,
+                detail_json: "{}", // the dashboard words findings from the values
                 procs: &procs,
                 culprit: f.culprit.as_deref(),
             });

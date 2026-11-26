@@ -79,6 +79,14 @@ impl Ring {
         self.frames.back()
     }
 
+    /// Newest sample of an app still in the ring, even if it has exited since.
+    pub fn last_seen(&self, name: &str) -> Option<&AppSample> {
+        self.frames
+            .iter()
+            .rev()
+            .find_map(|f| f.apps.iter().find(|a| a.name == name))
+    }
+
     pub fn span_secs(&self) -> u64 {
         match (self.frames.front(), self.frames.back()) {
             (Some(a), Some(b)) => b.sample.timestamp - a.sample.timestamp,
@@ -119,6 +127,34 @@ mod tests {
             },
             apps: vec![],
         }
+    }
+
+    #[test]
+    fn last_seen_finds_an_app_that_already_exited() {
+        let hog = |cpu| AppSample {
+            name: "hog.exe".into(),
+            exe_path: String::new(),
+            instances: 1,
+            top_pid: 7,
+            cpu_percent: cpu,
+            private_bytes: 1,
+            working_set_bytes: 1,
+            handles: 1,
+            read_bytes: 0,
+            write_bytes: 0,
+            gpu_percent: 0.0,
+            net_in_bytes: 0,
+            net_out_bytes: 0,
+        };
+        let mut ring = Ring::new(60);
+        for (ts, apps) in [(1, vec![hog(10.0)]), (2, vec![hog(90.0)]), (3, vec![])] {
+            ring.push(Frame {
+                apps,
+                ..frame(ts, 0.0)
+            });
+        }
+        assert_eq!(ring.last_seen("hog.exe").unwrap().cpu_percent, 90.0);
+        assert!(ring.last_seen("other.exe").is_none());
     }
 
     #[test]

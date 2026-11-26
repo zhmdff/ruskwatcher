@@ -4,193 +4,95 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RuskWatcher</title>
-<style>
-  :root { --bg:#14161a; --panel:#1d2026; --line:#2c313a; --fg:#e6e8ec; --dim:#8b93a1;
-          --cpu:#4cc2ff; --mem:#b48cff; --gpu:#5ee0a0; --disk:#ffb454; --net:#ff7a90; }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f4f5f7; --panel:#fff; --line:#dde0e6; --fg:#1a1d22; --dim:#667085; }
-  }
-  * { box-sizing:border-box }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,Segoe UI,sans-serif }
-  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line) }
-  h1 { font-size:16px; margin:0 12px 0 0 }
-  nav button, select { background:var(--panel); color:var(--fg); border:1px solid var(--line); padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit }
-  nav button.on { border-color:var(--cpu); color:var(--cpu) }
-  main { padding:16px; max-width:1200px; margin:auto }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:12px }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px }
-  .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:0 0 4px; display:flex; justify-content:space-between }
-  .card h2 b { color:var(--fg); font-size:14px }
-  svg { width:100%; height:110px; display:block }
-  table { width:100%; border-collapse:collapse; margin-top:8px }
-  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px }
-  th { color:var(--dim); font-weight:500; font-size:12px }
-  td.n, th.n { text-align:right }
-  .dim { color:var(--dim) } .warn { color:#ffb454 } .bad { color:#ff6b6b } .ok { color:#5ee0a0 }
-  #status { margin-left:auto; color:var(--dim); font-size:12px }
-  .banner { background:#3a2e12; color:#ffd479; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:13px }
-  .hidden { display:none }
-  .btn { background:var(--panel); color:var(--fg); border:1px solid var(--line); padding:6px 14px; border-radius:6px; cursor:pointer; font:inherit }
-  .btn:disabled { opacity:.5; cursor:default }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>RuskWatcher</h1>
-  <nav id="tabs"></nav>
-  <select id="range">
-    <option value="900">15 min</option>
-    <option value="3600" selected>1 hour</option>
-    <option value="21600">6 hours</option>
-    <option value="86400">24 hours</option>
-    <option value="604800">7 days</option>
-    <option value="2592000">30 days</option>
-  </select>
-  <span id="status">loading…</span>
-</header>
+<aside class="side">
+  <div class="brand">RuskWatcher</div>
+  <nav id="nav"></nav>
+  <p id="status" data-i18n="status.loading"></p>
+</aside>
 <main>
-  <div id="banner" class="banner hidden"></div>
-  <section id="overview">
-    <div class="grid" id="charts"></div>
-    <div class="card" style="margin-top:12px">
-      <h2>Top apps in range <span class="dim">averages cover only samples where the app was active</span></h2>
-      <table id="apps"></table>
-    </div>
-  </section>
-  <section id="findings" class="hidden"><div class="card"><h2>Findings</h2><table id="ftable"></table></div></section>
-  <section id="startup" class="hidden">
-    <div class="card"><h2>Startup entries</h2><table id="stable"></table></div>
-    <div class="card" style="margin-top:12px"><h2>Recent startup changes</h2><table id="ctable"></table></div>
-    <div class="card" style="margin-top:12px"><h2>Boots</h2><table id="btable"></table></div>
-  </section>
-  <section id="drives" class="hidden"><div class="card"><h2>Drives</h2><table id="dtable"></table></div></section>
-  <section id="settings" class="hidden">
-    <div class="card" style="max-width:640px">
-      <h2>Background collector</h2>
-      <p class="dim" style="margin:4px 0 12px">RuskWatcher records data with a small Windows service. This window only reads what it saved, so you can close it any time and collection continues.</p>
-      <p>Status: <b id="svc-state">…</b></p>
-      <label style="display:flex;gap:8px;align-items:center;margin:12px 0">
-        <input type="checkbox" id="svc-auto"> Start collecting automatically when Windows starts
-      </label>
-      <div style="display:flex;gap:8px"><button id="svc-run" class="btn"></button></div>
-      <p id="svc-msg" class="dim" style="min-height:1.4em"></p>
-      <p class="dim" style="font-size:12px">Changing these asks Windows for administrator approval. Data file: <span id="svc-db"></span></p>
-    </div>
-  </section>
+  <div class="content">
+    <header class="page-head">
+      <span id="page-icon"></span>
+      <h1 id="page-title"></h1>
+      <select id="range">
+        <option value="900" data-i18n="range.900"></option>
+        <option value="3600" data-i18n="range.3600" selected></option>
+        <option value="21600" data-i18n="range.21600"></option>
+        <option value="86400" data-i18n="range.86400"></option>
+        <option value="604800" data-i18n="range.604800"></option>
+        <option value="2592000" data-i18n="range.2592000"></option>
+      </select>
+    </header>
+    <div id="banner" class="banner hidden" role="status"></div>
+
+    <section id="overview"><div class="charts" id="charts"></div></section>
+
+    <section id="apps" class="hidden">
+      <div class="card"><h2 data-i18n="title.apps"></h2><p class="note" data-i18n="note.apps"></p><table id="apps-table"></table></div>
+    </section>
+
+    <section id="findings" class="hidden">
+      <div class="card"><h2 data-i18n="title.findings"></h2><table id="ftable"></table></div>
+    </section>
+
+    <section id="startup" class="hidden">
+      <div class="card"><h2 data-i18n="title.startup"></h2><table id="stable"></table></div>
+      <div class="card"><h2 data-i18n="title.changes"></h2><table id="ctable"></table></div>
+      <div class="card"><h2 data-i18n="title.boots"></h2><table id="btable"></table></div>
+    </section>
+
+    <section id="drives" class="hidden">
+      <div class="card"><h2 data-i18n="title.drives"></h2><table id="dtable"></table></div>
+    </section>
+
+    <section id="settings" class="hidden">
+      <div class="card">
+        <h2 data-i18n="settings.appearance"></h2>
+        <label class="field"><span data-i18n="settings.theme"></span>
+          <select id="theme">
+            <option value="system" data-i18n="settings.theme.system"></option>
+            <option value="light" data-i18n="settings.theme.light"></option>
+            <option value="dark" data-i18n="settings.theme.dark"></option>
+          </select>
+        </label>
+      </div>
+      <div class="card">
+        <h2 data-i18n="settings.language"></h2>
+        <label class="field"><span data-i18n="settings.language"></span> <select id="language"></select></label>
+      </div>
+      <div class="card">
+        <h2 data-i18n="svc.title"></h2>
+        <p class="note" data-i18n="svc.intro"></p>
+        <p><span data-i18n="svc.status"></span> <b id="svc-state">…</b></p>
+        <label class="check"><input type="checkbox" id="svc-auto" disabled> <span data-i18n="svc.auto"></span></label>
+        <button type="button" id="svc-run" class="btn" data-i18n="svc.start" disabled></button>
+        <p id="svc-msg" class="dim" aria-live="polite"></p>
+        <p class="note"><span data-i18n="svc.adminHint"></span> <span data-i18n="svc.dataFile"></span> <span class="db-path">–</span></p>
+      </div>
+    </section>
+
+    <section id="about" class="hidden">
+      <div class="card">
+        <h2>RuskWatcher</h2>
+        <p data-i18n="about.description"></p>
+        <dl>
+          <dt data-i18n="about.version"></dt><dd id="about-version">–</dd>
+          <dt data-i18n="about.collector"></dt><dd data-i18n="about.collectorRole"></dd>
+          <dt data-i18n="about.window"></dt><dd data-i18n="about.windowRole"></dd>
+          <dt data-i18n="about.dataFile"></dt><dd class="db-path">–</dd>
+          <dt data-i18n="about.license"></dt><dd>MIT</dd>
+          <dt data-i18n="about.publisher"></dt><dd>zhmdff</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
 </main>
-<script>
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const bytes = n => { if (n == null) return "–"; n = +n || 0; const u = ["B","KB","MB","GB","TB"]; let i = 0; while (n >= 1024 && i < 4) { n /= 1024; i++ } return n.toFixed(i ? 1 : 0) + " " + u[i] };
-const pct = n => (n == null ? "–" : n.toFixed(1) + "%");
-const when = ts => new Date(ts * 1000).toLocaleString();
-const dur = ms => ms == null ? "–" : (ms / 1000).toFixed(1) + " s";
-
-const TABS = ["overview", "findings", "startup", "drives", "settings"];
-let tab = "overview", last = null;
-$("#tabs").innerHTML = TABS.map(t => `<button data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("");
-$("#tabs").onclick = e => { if (e.target.dataset.t) { tab = e.target.dataset.t; show(); } };
-$("#range").onchange = load;
-
-function show() {
-  TABS.forEach(t => $("#" + t).classList.toggle("hidden", t !== tab));
-  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === tab));
-}
-
-// Minimal SVG line chart: values already bucketed by the server.
-function chart(title, series, color, max, fmt) {
-  const W = 400, H = 110, pts = series.filter(p => p.v != null);
-  const hi = max ?? Math.max(1, ...pts.map(p => p.v));
-  let path = "";
-  if (pts.length > 1) {
-    const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
-    path = pts.map((p, i) => `${i ? "L" : "M"}${((p.t - t0) / (t1 - t0 || 1) * W).toFixed(1)},${(H - 4 - p.v / hi * (H - 8)).toFixed(1)}`).join("");
-  }
-  const cur = pts.length ? fmt(pts[pts.length - 1].v) : "–";
-  return `<div class="card"><h2>${title}<b>${cur}</b></h2>
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <line x1="0" y1="${H - 1}" x2="${W}" y2="${H - 1}" stroke="var(--line)"/>
-      <path d="${path}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
-    </svg><div class="dim" style="font-size:12px">peak ${pts.length ? fmt(Math.max(...pts.map(p => p.v))) : "–"}</div></div>`;
-}
-
-function table(el, head, rows) {
-  $(el).innerHTML = `<tr>${head.map(h => `<th class="${h[1] || ""}">${h[0]}</th>`).join("")}</tr>` +
-    (rows.length ? rows.map(r => `<tr>${r.map((c, i) => `<td class="${head[i][1] || ""}" title="${esc(String(c).replace(/<[^>]+>/g, ""))}">${c}</td>`).join("")}</tr>`).join("")
-                 : `<tr><td class="dim" colspan="${head.length}">nothing yet</td></tr>`);
-}
-
-function render(d) {
-  const s = d.series, memTotal = d.mem_total || 1;
-  $("#charts").innerHTML =
-    chart("CPU", s.map(p => ({ t: p.ts, v: p.cpu })), "var(--cpu)", 100, pct) +
-    chart("Memory", s.map(p => ({ t: p.ts, v: p.mem == null ? null : p.mem / memTotal * 100 })), "var(--mem)", 100, pct) +
-    chart("GPU", s.map(p => ({ t: p.ts, v: p.gpu })), "var(--gpu)", 100, pct) +
-    chart("Disk (needs admin/service)", s.map(p => ({ t: p.ts, v: p.disk_bps })), "var(--disk)", null, v => bytes(v) + "/s") +
-    chart("Network (needs admin/service)", s.map(p => ({ t: p.ts, v: p.net_bps })), "var(--net)", null, v => bytes(v) + "/s");
-
-  table("#apps", [["App"], ["Signed"], ["CPU avg", "n"], ["CPU peak", "n"], ["Mem peak", "n"], ["GPU avg", "n"], ["Disk", "n"], ["Net", "n"]],
-    d.apps.map(a => [esc(a.name),
-      a.signed === 1 ? '<span class="ok">yes</span>' : a.signed === 0 ? '<span class="warn">no</span>' : '<span class="dim">?</span>',
-      pct(a.cpu_avg), pct(a.cpu_max), bytes(a.mem_max), pct(a.gpu_avg), bytes(a.disk_bytes), bytes(a.net_bytes)]));
-
-  table("#ftable", [["When"], ["Kind"], ["Sev", "n"], ["App"], ["What happened"]],
-    d.findings.map(f => [when(f.ts), esc(f.kind), `<span class="${f.severity > 1 ? "bad" : "warn"}">${f.severity}</span>`, esc(f.app || "–"), esc(f.summary)]));
-
-  table("#stable", [["Name"], ["Source"], ["State"], ["Command"]],
-    d.startup.map(e => [esc(e.name), esc(e.source), e.enabled ? '<span class="ok">enabled</span>' : '<span class="dim">disabled</span>', esc(e.command)]));
-  table("#ctable", [["When"], ["Change"], ["Name"], ["Detail"]],
-    d.startup_changes.map(c => [when(c.ts), esc(c.change), esc(c.name), esc(c.new || c.old || "")]));
-  table("#btable", [["Boot started"], ["Total", "n"], ["Main path", "n"], ["Post boot", "n"]],
-    d.boots.map(b => [when(b.ts), dur(b.duration_ms), dur(b.main_path_ms), dur(b.post_boot_ms)]));
-
-  table("#dtable", [["Model"], ["Type"], ["Size", "n"], ["Temp", "n"], ["Wear used", "n"], ["Spare", "n"], ["Written", "n"], ["Power-on", "n"], ["Media errors", "n"]],
-    d.drives.map(x => [esc(x.model), esc(x.kind), bytes(x.capacity), x.temp_c == null ? "–" : x.temp_c.toFixed(0) + " °C",
-      pct(x.percent_used), pct(x.spare), bytes(x.host_writes), (x.power_on_hours ?? "–") + " h", x.media_errors ?? "–"]));
-
-  const b = $("#banner");
-  const stale = !d.last_sample || d.now - d.last_sample > 30;
-  const msg = stale ? "The RuskWatcher service is not collecting right now (last sample " + (d.last_sample ? when(d.last_sample) : "never") + ")."
-    : !d.elevated ? "Collector is not elevated: per-app disk and network are off." : "";
-  b.classList.toggle("hidden", !msg);
-  b.textContent = msg;
-}
-
-async function load() {
-  try {
-    const d = await window.__TAURI__.core.invoke("dashboard", { range: +$("#range").value });
-    last = d; render(d);
-    $("#status").textContent = "updated " + new Date().toLocaleTimeString();
-  } catch (e) {
-    $("#status").textContent = "";
-    const b = $("#banner");
-    b.classList.remove("hidden");
-    b.textContent = String(e);
-  }
-}
-const invoke = (c, a) => window.__TAURI__.core.invoke(c, a);
-let svc = null;
-async function loadService() {
-  svc = await invoke("service_status");
-  $("#svc-state").textContent = !svc.installed ? "not installed" : svc.running ? "running" : "stopped";
-  $("#svc-state").className = !svc.installed ? "bad" : svc.running ? "ok" : "warn";
-  $("#svc-auto").checked = svc.autostart;
-  $("#svc-auto").disabled = !svc.installed;
-  $("#svc-run").textContent = svc.running ? "Stop collecting" : "Start collecting";
-  $("#svc-run").disabled = !svc.installed;
-  $("#svc-db").textContent = svc.db;
-}
-async function elevated(fn, args) {
-  $("#svc-msg").textContent = "Waiting for administrator approval…";
-  try { await invoke(fn, args); $("#svc-msg").textContent = "Done."; }
-  catch (e) { $("#svc-msg").textContent = "Not changed (" + e + ")."; }
-  await loadService();
-}
-$("#svc-auto").onchange = e => elevated("set_autostart", { on: e.target.checked });
-$("#svc-run").onclick = () => elevated("set_running", { on: !svc.running });
-$("#tabs").addEventListener("click", e => { if (e.target.dataset.t === "settings") loadService(); });
-
-show(); load(); loadService(); setInterval(load, 5000);
-</script>
+<script src="i18n.js"></script>
+<script src="icons.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

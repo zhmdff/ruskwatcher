@@ -51,7 +51,7 @@ impl Store {
                         SUM(COALESCE(s.net_in_bytes,0) + COALESCE(s.net_out_bytes,0)), AVG(s.gpu_avg), COUNT(*)
                  FROM proc_sample s JOIN process p ON p.id = s.process_id
                  WHERE s.tier = ?1 AND s.ts >= ?2
-                 GROUP BY s.process_id ORDER BY SUM(s.cpu_avg) DESC LIMIT 30",
+                 GROUP BY s.process_id ORDER BY SUM(s.cpu_avg) DESC",
             )?
             .query_map(params![tier, from], |r| {
                 Ok(json!({
@@ -72,27 +72,21 @@ impl Store {
         let findings: Vec<Value> = self
             .conn
             .prepare(
-                "SELECT f.id, f.ts_start, f.kind, f.severity, p.name, f.detail_json, sn.trigger_value, sn.threshold
+                "SELECT f.id, f.ts_start, f.kind, f.severity, p.name, sn.trigger_value, sn.threshold
                  FROM finding f
                  LEFT JOIN process p ON p.id = f.process_id
                  LEFT JOIN snapshot sn ON sn.id = f.snapshot_id
-                 WHERE f.ts_start >= ?1 ORDER BY f.ts_start DESC LIMIT 50",
+                 WHERE f.ts_start >= ?1 ORDER BY f.ts_start DESC LIMIT 500",
             )?
             .query_map([from], |r| {
-                let detail: String = r.get(5)?;
-                let summary = serde_json::from_str::<Value>(&detail)
-                    .ok()
-                    .and_then(|v| v["summary"].as_str().map(String::from))
-                    .unwrap_or(detail);
                 Ok(json!({
                     "id": r.get::<_, i64>(0)?,
                     "ts": r.get::<_, i64>(1)?,
                     "kind": r.get::<_, String>(2)?,
                     "severity": r.get::<_, i64>(3)?,
                     "app": r.get::<_, Option<String>>(4)?,
-                    "summary": summary,
-                    "value": r.get::<_, Option<f64>>(6)?,
-                    "threshold": r.get::<_, Option<f64>>(7)?,
+                    "value": r.get::<_, Option<f64>>(5)?,
+                    "threshold": r.get::<_, Option<f64>>(6)?,
                 }))
             })?
             .collect::<Result<_, _>>()?;
@@ -143,7 +137,7 @@ impl Store {
             .prepare(
                 "SELECT c.ts, c.change, e.name, c.old_command, c.new_command
                  FROM startup_change c JOIN startup_entry e ON e.id = c.entry_id
-                 ORDER BY c.ts DESC LIMIT 20",
+                 ORDER BY c.ts DESC LIMIT 200",
             )?
             .query_map([], |r| {
                 Ok(json!({
@@ -159,7 +153,7 @@ impl Store {
         let boots: Vec<Value> = self
             .conn
             .prepare(
-                "SELECT boot_ts, duration_ms, main_path_ms, post_boot_ms FROM boot ORDER BY boot_ts DESC LIMIT 5",
+                "SELECT boot_ts, duration_ms, main_path_ms, post_boot_ms FROM boot ORDER BY boot_ts DESC LIMIT 50",
             )?
             .query_map([], |r| {
                 Ok(json!({
@@ -199,6 +193,33 @@ impl Store {
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn dashboard_row_limits() {
+        let s = Store::open(Path::new(":memory:")).unwrap();
+        s.conn
+            .execute_batch(
+                "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 35)
+                 INSERT INTO process (id, exe_path, name, first_seen, last_seen)
+                 SELECT i, 'p' || i, 'p' || i, 0, 0 FROM n;
+                 INSERT INTO proc_sample (tier, ts, process_id, cpu_avg) SELECT 0, 9000, id, 1.0 FROM process;
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 60)
+                 INSERT INTO finding (ts_start, kind, severity, detail_json) SELECT 9000, 'k', 1, '{}' FROM n;
+                 INSERT INTO startup_entry (id, source, location, name, command, enabled, first_seen, last_seen)
+                 VALUES (1, 's', 'l', 'n', 'c', 1, 0, 0);
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 25)
+                 INSERT INTO startup_change (ts, entry_id, change) SELECT i, 1, 'added' FROM n;
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 7)
+                 INSERT INTO boot (boot_ts) SELECT i FROM n;",
+            )
+            .unwrap();
+        let v = s.dashboard(3600, 10_000).unwrap();
+        let len = |k: &str| v[k].as_array().unwrap().len();
+        assert_eq!(len("apps"), 35);
+        assert_eq!(len("findings"), 60);
+        assert_eq!(len("startup_changes"), 25);
+        assert_eq!(len("boots"), 7);
+    }
 
     #[test]
     fn dashboard_on_empty_db() {
