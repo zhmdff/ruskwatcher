@@ -4,7 +4,8 @@
   <Product Id="*" Name="RuskWatcher" Language="1033" Version="$(var.Version)" Manufacturer="RuskWatcher"
            UpgradeCode="158eceb2-dcf4-4ad4-9a47-a343579fb4e7">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of RuskWatcher is already installed." />
+    <!-- rebuilds keep the same version; without this Windows installs them side by side and keeps the old exe -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of RuskWatcher is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
